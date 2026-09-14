@@ -19,7 +19,15 @@ Write-Host "[3/4] Cai thu vien..."
 # PyPI mac dinh co the cai wheel CPU tren Windows. Chon wheel CUDA ro rang
 # neu co NVIDIA de pipeline camera khong bi gioi han o ~1 FPS.
 if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
-    $cudaReady = (& .\.venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())" 2>$null) -eq "True"
+    $cudaReady = $false
+    $torchInstalled = (& .\.venv\Scripts\python.exe -c "import importlib.util; print(importlib.util.find_spec('torch') is not None)") -eq "True"
+    if ($torchInstalled) {
+        try {
+            $cudaReady = (& .\.venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available())" 2>$null) -eq "True"
+        } catch {
+            $cudaReady = $false
+        }
+    }
     if (-not $cudaReady) {
         Write-Host "Phat hien NVIDIA GPU - thay PyTorch CPU bang CUDA 12.8..."
         & .\.venv\Scripts\python.exe -m pip install --force-reinstall --no-deps torch==2.7.1 torchvision==0.22.1 --index-url https://download.pytorch.org/whl/cu128
