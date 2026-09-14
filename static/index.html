@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#151d29">
+  <title>Person Search — Tìm kiếm người qua camera</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css?v=4">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="scan-logo" aria-hidden="true"><i></i><i></i><i></i><i></i><span></span></div>
+      <div><h1>Person Search</h1><p>Find the right person, faster.</p></div>
+    </div>
+    <div class="system-bar">
+      <span class="online"><b></b><span id="systemStatus">System Online</span></span>
+      <span class="divider"></span>
+      <span id="currentDate">--</span><span id="currentTime">--:--:--</span>
+      <span class="divider"></span>
+      <button class="avatar" title="Tài khoản">M</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="workspace">
+      <aside class="target-panel card">
+        <div class="panel-heading">
+          <span class="heading-icon">●</span>
+          <div><h2>Target Person</h2><p>Upload an image of the person<br>you want to find.</p></div>
+        </div>
+
+        <button id="targetDrop" class="target-drop" type="button">
+          <input id="targetInput" type="file" accept="image/*" hidden>
+          <div id="targetPlaceholder" class="drop-placeholder">
+            <span class="upload-glyph">↥</span>
+            <strong>Upload target image</strong>
+            <small>JPG, PNG · max 12 MB</small>
+          </div>
+          <img id="targetPreview" alt="Người cần tìm" hidden>
+          <span id="targetBadge" class="target-ok" hidden>✓ Person detected</span>
+        </button>
+        <button id="changeTarget" class="secondary wide" type="button">↥ &nbsp; Change Image</button>
+
+        <div class="threshold-block">
+          <div class="threshold-title"><label for="threshold">Similarity Threshold</label><span class="tip" title="Ngưỡng cao giảm báo nhầm, nhưng có thể bỏ sót người ở góc khó.">?</span></div>
+          <div class="range-line">
+            <input id="threshold" type="range" min="0.10" max="0.95" value="0.62" step="0.01">
+            <output id="thresholdValue">0.62</output>
+          </div>
+          <div class="range-labels"><span>0.10</span><span>0.95</span></div>
+          <p class="threshold-note">Khuyến nghị: 0.58–0.68, sau đó hiệu chỉnh bằng video thực tế.</p>
+        </div>
+      </aside>
+
+      <section class="viewer-panel">
+        <div class="viewer-toolbar">
+          <div class="source-tabs">
+            <button id="cameraTab" class="tab active" type="button"><span>▣</span> Camera</button>
+            <button id="videoTab" class="tab" type="button"><span>▶</span> Video</button>
+            <input id="videoInput" type="file" accept="video/*" hidden>
+          </div>
+          <div class="camera-tools">
+            <select id="cameraSelect" aria-label="Chọn camera"><option value="">Camera mặc định</option></select>
+            <button id="fullscreen" class="icon-button" type="button" title="Toàn màn hình">⛶</button>
+          </div>
+        </div>
+
+        <div id="stage" class="stage empty">
+          <video id="sourceVideo" playsinline muted autoplay></video>
+          <canvas id="overlay"></canvas>
+          <div id="emptyState" class="empty-state">
+            <div class="empty-camera">▣</div>
+            <h3>Sẵn sàng tìm kiếm</h3>
+            <p>Tải ảnh người cần tìm, sau đó chọn Camera hoặc Video.</p>
+          </div>
+          <div id="loadingState" class="loading-state" hidden><span class="spinner"></span><b>Đang khởi tạo mô hình AI…</b><small>Lần đầu có thể mất vài phút để tải trọng số.</small></div>
+          <div class="stage-badges"><span id="sourceBadge" hidden>CAMERA</span><span id="deviceBadge" hidden>CPU</span></div>
+        </div>
+        <canvas id="captureCanvas" hidden></canvas>
+
+        <div class="viewer-controls">
+          <div class="control-left">
+            <button id="stopBtn" class="danger" type="button" disabled>■ &nbsp; Stop</button>
+            <button id="pauseBtn" class="secondary" type="button" disabled>Ⅱ &nbsp; Pause</button>
+            <button id="shotBtn" class="secondary" type="button" disabled>▣ &nbsp; Screenshot</button>
+          </div>
+          <div class="live-meta"><span class="live-dot"></span><span id="liveText">Idle</span><span>FPS</span><b id="fpsValue">0.0</b></div>
+        </div>
+      </section>
+
+      <aside class="result-column">
+        <section class="best-card card">
+          <h2><span class="red-icon">●</span> Best Match</h2>
+          <div class="best-content">
+            <div class="best-photo-wrap"><img id="bestPhoto" alt="Best match"><div id="bestPlaceholder" class="best-placeholder">?</div></div>
+            <div class="best-score"><label>Similarity</label><strong id="bestScore">—</strong><span id="matchBadge" class="match-badge waiting">WAITING</span></div>
+          </div>
+          <dl class="best-details">
+            <div><dt>Track ID</dt><dd id="bestTrack">—</dd></div>
+            <div><dt>Time</dt><dd id="bestTime">—</dd></div>
+            <div><dt>Camera</dt><dd id="bestCamera">—</dd></div>
+            <div><dt>Frame</dt><dd id="bestFrame">—</dd></div>
+          </dl>
+        </section>
+
+        <section class="stats-card card">
+          <div class="stats-heading"><h2><span>▥</span> Current Statistics</h2><span class="live-pill"><i></i> Live</span></div>
+          <div class="stats-grid">
+            <div class="stat"><span class="stat-icon people-icon">♟</span><p><strong id="peopleCount">0</strong><small>People in frame</small></p></div>
+            <div class="stat"><span class="stat-icon">◎</span><p><strong id="tracksCount">0</strong><small>Active tracks</small></p></div>
+            <div class="stat"><span class="stat-icon">⌾</span><p><strong id="statSimilarity">—</strong><small>Best similarity</small></p></div>
+            <div class="stat"><span class="stat-icon">◴</span><p><strong id="statFps">0.0</strong><small>Processing FPS</small></p></div>
+          </div>
+        </section>
+      </aside>
+    </section>
+
+    <section class="history card">
+      <div class="history-head">
+        <div><h2><span>◷</span> Detection History</h2><p>Recent detection results (latest first).</p></div>
+        <div class="history-filters">
+          <label class="searchbox">⌕ <input id="historySearch" type="search" placeholder="Search by Track ID..."></label>
+          <select id="statusFilter"><option value="all">All status</option><option value="matched">Matched</option><option value="tracking">Tracking</option></select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Time</th><th>Track ID</th><th>Similarity</th><th>Status</th><th>Snapshot</th></tr></thead>
+          <tbody id="historyBody"><tr class="empty-row"><td colspan="6">Chưa có kết quả. Hãy bắt đầu camera hoặc mở video.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/static/app.js?v=4"></script>
+</body>
+</html>
