@@ -101,16 +101,16 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .red-icon { display: inline-grid; place-items: center; width: 27px; height: 27px; border-radius: 6px; background: var(--red); color: white; font-size: 8px; margin-right: 8px; }
 .best-content { display: grid; grid-template-columns: 145px 1fr; gap: 20px; align-items: start; margin: 22px 0 18px; }
 .best-photo-wrap { height: 180px; border-radius: 6px; overflow: hidden; background: #e8ebef; position: relative; }
-.best-photo-wrap img { width: 100%; height: 100%; object-fit: cover; display: none; }
+.best-photo-wrap img { width: 100%; height: 100%; object-fit: contain; object-position: center; display: none; }
 .best-placeholder { height: 100%; display: grid; place-items: center; font-weight: 800; font-size: 40px; color: #bac2cd; }
 .best-score label { font-size: 11px; font-weight: 600; display: block; margin: 8px 0 6px; }
 .best-score strong { display: block; color: var(--red); font-size: 35px; line-height: 1; }
 .match-badge { display: inline-block; margin-top: 15px; border-radius: 5px; padding: 7px 12px; font-size: 11px; color: #d62238; background: #ffe3e7; font-weight: 700; }
 .match-badge.waiting { color: #68768a; background: #edf0f4; }
-.best-details { margin: 0 0 0 165px; border-top: 1px solid var(--line); padding-top: 11px; font-size: 11px; }
-.best-details div { display: grid; grid-template-columns: 64px 1fr; margin: 10px 0; }
+.best-details { margin: 0; border-top: 1px solid var(--line); padding-top: 11px; font-size: 11px; }
+.best-details div { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 8px; align-items: start; margin: 10px 0; }
 .best-details dt { color: var(--muted); }
-.best-details dd { margin: 0; color: #152034; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.best-details dd { margin: 0; color: #152034; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; }
 .stats-card { padding: 15px; }
 .stats-heading { display: flex; justify-content: space-between; align-items: center; }
 .stats-heading h2 span { font-size: 18px; margin-right: 7px; }
@@ -155,6 +155,5 @@ td.sim-match { color: var(--red); font-weight: 700; }
 @media (max-width: 1250px) {
   .workspace { grid-template-columns: 245px minmax(480px, 1fr) 315px; }
   .best-content { grid-template-columns: 120px 1fr; gap: 13px; }
-  .best-details { margin-left: 133px; }
   .camera-tools select { min-width: 170px; }
 }
