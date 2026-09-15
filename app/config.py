@@ -31,9 +31,7 @@ class Settings:
     detection_iou: float = float(os.getenv("DETECTION_IOU", "0.65"))
     image_size: int = int(os.getenv("IMAGE_SIZE", "960"))
     match_threshold: float = float(os.getenv("MATCH_THRESHOLD", "0.62"))
-    reid_every_n_frames: int = int(os.getenv("REID_EVERY_N_FRAMES", "2"))
     min_person_height: int = int(os.getenv("MIN_PERSON_HEIGHT", "100"))
-    max_gallery_features: int = int(os.getenv("MAX_GALLERY_FEATURES", "12"))
     reid_repo: str = "kaiyangzhou/osnet"
     reid_filename: str = (
         "osnet_ain_x1_0_msmt17_256x128_amsgrad_ep50_lr0.0015_"

@@ -2,8 +2,10 @@ import base64
 
 import cv2
 import numpy as np
+import pytest
 
 from app.reid import ReIDEngine
+from app.search import SearchSession
 from app.calibration import choose_threshold
 from app.config import MODEL_DIR, settings
 from app.utils import crop_quality, decode_data_url, safe_crop
@@ -35,6 +37,18 @@ def test_similarity_uses_best_query_and_gallery_views():
     query = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
     gallery = np.array([[0.99, 0.01], [-1.0, 0.0]], dtype=np.float32)
     assert ReIDEngine.similarity(query, gallery) > 0.65
+
+
+def test_track_scores_use_only_features_from_the_current_frame():
+    session = SearchSession.__new__(SearchSession)
+    session.query = np.array([[1.0, 0.0]], dtype=np.float32)
+    session.reid = ReIDEngine.__new__(ReIDEngine)
+
+    first = session._realtime_scores([7], np.array([[0.9, 0.1]], dtype=np.float32))
+    second = session._realtime_scores([7], np.array([[0.2, 0.8]], dtype=np.float32))
+
+    assert first[7] == pytest.approx(0.9)
+    assert second[7] == pytest.approx(0.2)
 
 
 def test_threshold_calibration_separates_validation_groups():

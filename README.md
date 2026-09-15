@@ -4,7 +4,7 @@ Hệ thống tìm đúng một người trong camera/video theo kiến trúc tro
 
 `ảnh mục tiêu → YOLO person crop → OSNet-AIN embedding`
 
-`camera/video → YOLO11 → BoT-SORT → gallery nhiều frame → cosine similarity → temporal voting`
+`camera/video → YOLO11 → BoT-SORT → embedding từng frame → cosine similarity realtime → temporal confirmation`
 
 Giao diện được dựng theo dashboard tham chiếu: tải ảnh mục tiêu, camera/video, bounding box theo Track ID, best match, thống kê, ngưỡng và lịch sử phát hiện.
 
@@ -13,8 +13,8 @@ Giao diện được dựng theo dashboard tham chiếu: tải ảnh mục tiêu
 - YOLO11m ở kích thước 960 px thay vì model nano; có thể đổi sang `yolo11x.pt` nếu GPU đủ mạnh.
 - BoT-SORT duy trì danh tính qua nhiều frame và xử lý che khuất tốt hơn so sánh từng frame độc lập.
 - OSNet-AIN x1.0 dùng checkpoint MSMT17 chuyên cho person Re-ID, không dùng feature ImageNet chung chung.
-- Ảnh mục tiêu có flip test-time augmentation. Gallery của từng track giữ 12 crop nét/lớn/tin cậy nhất.
-- Điểm được tổng hợp từ các view tốt nhất và làm mượt theo thời gian. Phải vượt ngưỡng 2 lần mới gắn nhãn `TARGET`, giảm false positive.
+- Ảnh mục tiêu có flip test-time augmentation. Score của mỗi track được tính trực tiếp từ crop trong frame hiện tại nên phản ánh realtime.
+- Phải vượt ngưỡng 2 frame liên tiếp mới gắn nhãn `TARGET`, giảm false positive mà không làm trễ score hiển thị.
 
 > Đây là person Re-ID dựa chủ yếu vào toàn thân/trang phục, không phải nhận dạng khuôn mặt. Nếu hai người mặc giống nhau hoặc mục tiêu thay quần áo, nên thêm face recognition (khi có sự đồng ý và phù hợp quy định riêng tư).
 
@@ -53,18 +53,17 @@ Camera trình duyệt chỉ hoạt động trên `localhost` hoặc HTTPS.
 
 Sao chép `.env.example` thành `.env` rồi đặt biến môi trường trước khi chạy (ứng dụng đọc biến môi trường trực tiếp).
 
-| Mục tiêu | `YOLO_MODEL` | `IMAGE_SIZE` | `REID_EVERY_N_FRAMES` |
-|---|---:|---:|---:|
-| Chính xác cao, GPU mạnh | `yolo11x.pt` | `1280` | `1` |
-| Cân bằng (mặc định) | `yolo11m.pt` | `960` | `2` |
-| Máy yếu / CPU | `yolo11n.pt` | `640` | `3` |
+| Mục tiêu | `YOLO_MODEL` | `IMAGE_SIZE` |
+|---|---:|---:|
+| Chính xác cao, GPU mạnh | `yolo11x.pt` | `1280` |
+| Cân bằng (mặc định) | `yolo11m.pt` | `960` |
+| Máy yếu / CPU | `yolo11n.pt` | `640` |
 
 Ví dụ PowerShell:
 
 ```powershell
 $env:YOLO_MODEL="yolo11x.pt"
 $env:IMAGE_SIZE="1280"
-$env:REID_EVERY_N_FRAMES="1"
 .\start.ps1
 ```
 
@@ -84,7 +83,7 @@ Mỗi thư mục nên có tối thiểu 20–30 ảnh từ chính camera sẽ tr
 ## Cấu trúc
 
 - `app/main.py`: API tải ảnh và WebSocket realtime.
-- `app/search.py`: YOLO + BoT-SORT, gallery và temporal matching.
+- `app/search.py`: YOLO + BoT-SORT, Re-ID realtime và temporal confirmation.
 - `app/reid.py`: OSNet-AIN feature extractor và cosine similarity.
 - `tools/calibrate.py`: tìm ngưỡng tốt nhất từ mẫu cùng người/khác người.
 - `models/`: nơi tự tải toàn bộ trọng số YOLO/OSNet; Git chỉ lưu `.gitkeep`.

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import time
-from collections import defaultdict, deque
-from dataclasses import dataclass
+from collections import defaultdict
 
 import cv2
 import numpy as np
@@ -11,17 +10,11 @@ from ultralytics import YOLO
 
 from .config import Settings
 from .reid import ReIDEngine
-from .utils import crop_quality, encode_jpeg, iso_now, safe_crop
-
-
-@dataclass
-class GalleryItem:
-    quality: float
-    feature: np.ndarray
+from .utils import encode_jpeg, iso_now, safe_crop
 
 
 class SearchSession:
-    """One independent tracker and temporal Re-ID gallery per browser session."""
+    """One independent tracker with per-frame Re-ID scores per browser session."""
 
     def __init__(self, config: Settings, reid: ReIDEngine, query: np.ndarray):
         self.config = config
@@ -31,24 +24,17 @@ class SearchSession:
         self.device = 0 if torch.cuda.is_available() else "cpu"
         self.frame_number = 0
         self.seen_ids: set[int] = set()
-        self.gallery: dict[int, list[GalleryItem]] = defaultdict(list)
-        self.scores: dict[int, deque[float]] = defaultdict(lambda: deque(maxlen=7))
         self.streaks: dict[int, int] = defaultdict(int)
         self.best: dict | None = None
         self.started = time.perf_counter()
         self.last_seen: dict[int, int] = {}
 
-    def _update_gallery(self, track_id: int, feature: np.ndarray, quality: float) -> None:
-        items = self.gallery[track_id]
-        items.append(GalleryItem(quality, feature))
-        items.sort(key=lambda x: x.quality, reverse=True)
-        del items[self.config.max_gallery_features:]
-
-    def _stable_score(self, track_id: int, current: float) -> float:
-        history = self.scores[track_id]
-        history.append(current)
-        weights = np.linspace(0.65, 1.0, len(history), dtype=np.float32)
-        return float(np.average(np.asarray(history), weights=weights))
+    def _realtime_scores(self, track_ids: list[int], features: np.ndarray) -> dict[int, float]:
+        """Score each track from its crop in the current frame only."""
+        return {
+            track_id: self.reid.similarity(self.query, feature[None, :])
+            for track_id, feature in zip(track_ids, features)
+        }
 
     def process(self, frame: np.ndarray, threshold: float) -> dict:
         started = time.perf_counter()
@@ -67,7 +53,7 @@ class SearchSession:
         )[0]
 
         detections: list[dict] = []
-        pending: list[tuple[int, np.ndarray, float]] = []
+        pending: list[tuple[int, np.ndarray]] = []
         if output.boxes is not None and len(output.boxes):
             xyxy = output.boxes.xyxy.detach().cpu().numpy().astype(int)
             confidences = output.boxes.conf.detach().cpu().numpy()
@@ -78,13 +64,8 @@ class SearchSession:
                 crop = safe_crop(frame, (x1, y1, x2, y2))
                 self.seen_ids.add(int(track_id))
                 self.last_seen[int(track_id)] = self.frame_number
-                quality = crop_quality(crop, float(conf))
-                if (
-                    crop.shape[0] >= self.config.min_person_height
-                    and (self.frame_number % self.config.reid_every_n_frames == 0 or track_id not in self.gallery)
-                    and quality >= 0.28
-                ):
-                    pending.append((int(track_id), crop, quality))
+                if crop.shape[0] >= self.config.min_person_height:
+                    pending.append((int(track_id), crop))
                 detections.append({
                     "track_id": int(track_id),
                     "bbox": [x1, y1, x2, y2],
@@ -92,19 +73,16 @@ class SearchSession:
                     "crop": crop,
                 })
 
+        current_scores: dict[int, float] = {}
         if pending:
             features = self.reid.embed([item[1] for item in pending])
-            for (track_id, _, quality), feature in zip(pending, features):
-                self._update_gallery(track_id, feature, quality)
+            current_scores = self._realtime_scores([item[0] for item in pending], features)
 
         best_in_frame: dict | None = None
         response_boxes: list[dict] = []
         for det in detections:
             track_id = det["track_id"]
-            items = self.gallery.get(track_id, [])
-            gallery = np.stack([x.feature for x in items]) if items else np.empty((0, self.query.shape[1]))
-            raw = self.reid.similarity(self.query, gallery)
-            score = self._stable_score(track_id, raw)
+            score = current_scores.get(track_id, 0.0)
             if score >= threshold:
                 self.streaks[track_id] += 1
             else:
@@ -136,17 +114,20 @@ class SearchSession:
             self.best = {
                 "track_id": best_in_frame["track_id"],
                 "similarity": best_in_frame["similarity"],
-                "matched": best_in_frame["similarity"] >= threshold,
+                "matched": best_in_frame["matched"],
                 "time": iso_now(),
                 "frame": self.frame_number,
                 "crop": encode_jpeg(best_in_frame["crop"], 80),
             }
 
-        # Expire feature galleries from IDs absent for a long time.
+        visible_ids = {det["track_id"] for det in detections}
+        for track_id in list(self.streaks):
+            if track_id not in visible_ids:
+                self.streaks[track_id] = 0
+
+        # Expire state from IDs absent for a long time.
         stale = [track_id for track_id, seen in self.last_seen.items() if self.frame_number - seen > 300]
         for track_id in stale:
-            self.gallery.pop(track_id, None)
-            self.scores.pop(track_id, None)
             self.streaks.pop(track_id, None)
             self.last_seen.pop(track_id, None)
 
@@ -165,6 +146,7 @@ class SearchSession:
                 "fps": round(1.0 / elapsed, 1),
                 "uptime": round(time.perf_counter() - self.started, 1),
                 "device": "GPU" if torch.cuda.is_available() else "CPU",
+                "best_similarity": best_in_frame["similarity"] if best_in_frame else None,
             },
         }
 

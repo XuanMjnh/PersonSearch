@@ -201,6 +201,9 @@ function updateResult(message) {
   els.tracksCount.textContent = stats.tracks;
   els.fpsValue.textContent = stats.fps.toFixed(1);
   els.statFps.textContent = stats.fps.toFixed(1);
+  els.statSimilarity.textContent = stats.best_similarity == null
+    ? '—'
+    : `${(stats.best_similarity * 100).toFixed(1)}%`;
   els.deviceBadge.textContent = stats.device;
   if (message.best) updateBest(message.best);
   appendHistory(message);
@@ -228,7 +231,7 @@ function drawBoxes(width, height) {
 function updateBest(best) {
   state.best = best;
   const pct = `${(best.similarity * 100).toFixed(1)}%`;
-  els.bestScore.textContent = pct; els.statSimilarity.textContent = pct;
+  els.bestScore.textContent = pct;
   els.bestTrack.textContent = best.track_id; els.bestFrame.textContent = best.frame;
   els.bestTime.textContent = new Date(best.time).toLocaleString('vi-VN');
   els.bestCamera.textContent = state.cameraName;
